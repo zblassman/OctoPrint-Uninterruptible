@@ -1,0 +1,8 @@
+<a href="javascript:void(0)" id= "navbar_plugin_uninterruptible_link" title="{{ _('UPS Status')|edq }}" class="dropdown-toggle" data-toggle="dropdown">
+	<i data-bind="css: iconClass"></i>
+	<i class="fa fa-question" data-bind="visible: unknown"></i>
+	<b class="caret"></b>
+</a>
+<ul class="dropdown-menu" data-bind="foreach: dropdownData">
+	<li><a href="javascript:void(0)"><span data-bind="html: text"></span></a></li>
+</ul>
