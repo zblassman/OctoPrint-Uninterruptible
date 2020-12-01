@@ -39,13 +39,20 @@ class UPSState(object):
 			"runtime": runtime,
 		}
 
-	def __getattr__(self, name):
-		if self._state and name in self._state.keys():
-			return self._state[name]
-		raise AttributeError("'UPSState' object has no attribute {}".format(name))
-
 	def __str__(self):
 		return str(self.as_dict())
+
+	@property
+	def status(self):
+		return self._state['status']
+
+	@property
+	def charge(self):
+		return self._state['charge']
+
+	@property
+	def runtime(self):
+		return self._state['runtime']
 
 	@property
 	def is_unknown(self):
