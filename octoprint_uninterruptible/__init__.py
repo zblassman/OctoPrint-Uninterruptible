@@ -6,17 +6,72 @@ from octoprint.util import RepeatedTimer
 from nut2 import PyNUTClient, PyNUTError
 import flask
 
+
+class UPSState(object):
+	UNKNOWN_STATUS = "UNK"
+	UNKNOWN_INT = -1
+
+	def __init__(self, raw_state=None):
+		self._raw_state = raw_state or {}
+		self._state = None
+		self._normalize()
+
+	def _normalize(self):
+		status = self.UNKNOWN_STATUS
+
+		if "ups.status" in self._raw_state:
+			s = self._raw_state["ups.status"]
+			# Online flag set
+			if "OL" in s:
+				status = "OL"
+			# On battery flag set
+			elif "OB" in s:
+				status = "OB"
+			else:
+				status = self.UNKNOWN_STATUS
+
+		charge = int(self._raw_state.get("battery.charge", self.UNKNOWN_INT))
+		runtime = int(self._raw_state.get("battery.runtime", self.UNKNOWN_INT))
+
+		self._state = {
+			"status": status,
+			"charge": charge,
+			"runtime": runtime,
+		}
+
+	def __getattr__(self, name):
+		if self._state and name in self._state.keys():
+			return self._state[name]
+		raise AttributeError("'UPSState' object has no attribute {}".format(name))
+
+	def __str__(self):
+		return str(self.as_dict())
+
+	@property
+	def is_unknown(self):
+		return self._state["status"] == self.UNKNOWN_STATUS
+
+	def update_raw_state(self, raw_state):
+		self._raw_state = raw_state
+		self._normalize()
+
+	def raw_state(self):
+		return self._raw_state
+
+	def as_dict(self):
+		return self._state
+
+
 class UninterruptiblePlugin(octoprint.plugin.SimpleApiPlugin,
 							octoprint.plugin.AssetPlugin,
 							octoprint.plugin.TemplatePlugin,
 							octoprint.plugin.StartupPlugin,
 							octoprint.plugin.SettingsPlugin):
 
-	UNKNOWN_STATE = {"UNK", -1, -1}
 
 	def __init__(self):
 		self._updateTimer = None
-		self._state = None
+		self._state = UPSState()
 
 	##~~ SettingsPlugin
 
@@ -29,14 +84,11 @@ class UninterruptiblePlugin(octoprint.plugin.SimpleApiPlugin,
 
 	def on_api_get(self, request):
 		self._logger.debug("API call received")
-		state = self._get_state()
-		return flask.jsonify(state)
+		return flask.jsonify(self._state.as_dict())
 
 	##~~ AssetPlugin
 
 	def get_assets(self):
-		# Define your plugin's asset files to automatically include in the
-		# core UI here.
 		return dict(
 			js=["js/uninterruptible.js"],
 			clientjs=["clientjs/uninterruptible.js"],
@@ -64,9 +116,6 @@ class UninterruptiblePlugin(octoprint.plugin.SimpleApiPlugin,
 	##~~ Softwareupdate hook
 
 	def get_update_information(self):
-		# Define the configuration for your plugin to use with the Software Update
-		# Plugin here. See https://docs.octoprint.org/en/master/bundledplugins/softwareupdate.html
-		# for details.
 		return dict(
 			uninterruptible=dict(
 				displayName="Uninterruptible Plugin",
@@ -89,49 +138,31 @@ class UninterruptiblePlugin(octoprint.plugin.SimpleApiPlugin,
 		self._update_timer = RepeatedTimer(self._update_state_interval, self._update_state)
 		self._update_timer.start()
 
-	def _get_state(self):
-		if not self._state:
-			self._update_state()
-		return self._state or self.UNKNOWN_STATE
-
 	def _update_state_interval(self):
-		return 10
+		return 5
 
 	def _update_state(self):
-		state = self._get_state_nut()
+		raw_state = self._get_raw_state_nut()
+		state = UPSState(raw_state)
 		self._logger.debug("Current state: " + str(state))
-		self._plugin_manager.send_plugin_message(self._identifier, state)
+		self._plugin_manager.send_plugin_message(self._identifier, state.as_dict())
 
-		if self._state and self._state["status"] != state["status"]:
+		if self._state and not self._state.is_unknown and not state.is_unknown and (self._state.status != state.status):
 			self._logger.debug("Firing UPS status change event")
-			self._event_bus.fire(octoprint.events.Events.PLUGIN_UNINTERRUPTIBLE_UPS_STATUS_CHANGE, state)
+			self._event_bus.fire(octoprint.events.Events.PLUGIN_UNINTERRUPTIBLE_UPS_STATUS_CHANGE, state.as_dict())
 
 		self._state = state
 
-	def _get_state_test(self):
-		self._logger.debug("Updating UPS state with test values")
-		return { "status": "OL", "charge": 98, "runtime": 3600 }
-
-	def _get_state_nut(self):
+	def _get_raw_state_nut(self):
 		self._logger.debug("Updating UPS state from NUT")
 		try:
 			client = PyNUTClient()
 			ups = list(client.list_ups().keys())[0]
 			data = client.list_vars(ups)
+			return data
 		except PyNUTError as e:
 			self._logger.warning("Error updating UPS state from NUT: " + repr(e))
 			return None
-		status = data["ups.status"]
-		status_norm = "OL" if "OL" in status else "OB"
-		return {
-			"status": status_norm,
-			"charge": int(data.get("battery.charge", -1)),
-			"runtime": int(data.get("battery.runtime", -1))
-		}
-
-	# def _get_state_apcupsd(self):
-	# 	self._logger.debug("Updating UPS state from apcupsd")
-	# 	out = subprocess.check_output('apcaccess').decode()
 
 def register_custom_events(*args, **kwargs):
 	return ["ups_status_change",]

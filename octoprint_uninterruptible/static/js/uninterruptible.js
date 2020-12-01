@@ -20,7 +20,7 @@ $(function() {
         self.unknown = ko.observable(false);
         self.dropdownData = ko.observable([]);
 
-        self.state = {status: "UND", percentage: -1, remainingSec: -1};
+        self.state = {status: "UND", charge: -1, runtime: -1};
 
         self.updateDisplay = function() {
             var statusSetting = self.statusSettings[self.state.status];
@@ -28,10 +28,10 @@ $(function() {
             self.unknown(statusSetting.unknown);
             var ddata = [{text: "Status: " + statusSetting.statusText }];
             
-            if (state.charge != -1) {
+            if (self.state.charge != -1) {
                 ddata.push({text: "Charge: " + self.state.charge + "%"})
             }
-            if (state.runtime != -1) {
+            if (self.state.runtime != -1) {
                 var total_m = Math.round(self.state.runtime / 60);
                 var m = total_m % 60;
                 var h = (total_m - m) / 60;
