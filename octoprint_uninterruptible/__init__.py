@@ -68,7 +68,6 @@ class UninterruptiblePlugin(octoprint.plugin.SimpleApiPlugin,
 							octoprint.plugin.StartupPlugin,
 							octoprint.plugin.SettingsPlugin):
 
-
 	def __init__(self):
 		self._updateTimer = None
 		self._state = UPSState()
@@ -80,7 +79,7 @@ class UninterruptiblePlugin(octoprint.plugin.SimpleApiPlugin,
 			# put your plugin's default settings here
 		)
 
-	#~~ SimpleApiPlugin
+	# ~~ SimpleApiPlugin
 
 	def on_api_get(self, request):
 		self._logger.debug("API call received")
@@ -164,14 +163,17 @@ class UninterruptiblePlugin(octoprint.plugin.SimpleApiPlugin,
 			self._logger.warning("Error updating UPS state from NUT: " + repr(e))
 			return None
 
+
 def register_custom_events(*args, **kwargs):
-	return ["ups_status_change",]
+	return ["ups_status_change", ]
 
 
 def __plugin_check__():
 	return True
 
-__plugin_pythoncompat__ = ">=2.7,<4" # python 2 and 3
+
+__plugin_pythoncompat__ = ">=2.7,<4"  # python 2 and 3
+
 
 def __plugin_load__():
 	global __plugin_implementation__
@@ -182,4 +184,3 @@ def __plugin_load__():
 		"octoprint.events.register_custom_events": register_custom_events,
 		"octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information
 	}
-
